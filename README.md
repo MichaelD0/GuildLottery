@@ -66,4 +66,4 @@ Every ticket gets a slot in a pool. Example:
 The addon rolls `/random 1–6`. Whoever owns that slot wins. More tickets = better odds.
 
 ## Interface Version
-The `.toc` file currently targets **10.2.7** (`100207`). Update this number if you're on a different patch.
+The `.toc` file currently supports **12.0.0**, **12.0.1**, and **12.0.2** (`120000`, `120001`, `120002`). Update these values if you're on a different patch.
