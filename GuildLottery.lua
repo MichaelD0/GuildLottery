@@ -24,19 +24,12 @@ GL.settings     = {
 }
 
 -- ============================================================
--- MESSAGES  (edit these to customise chat output)
+-- MESSAGES  (locale-aware; see Locales/ folder to add translations)
 -- ============================================================
-local MSG       = {
-    start   = "[GuildLottery] ** LOTTERY OPEN ** Buy tickets from the host! Cost: %s each. Min: %d, Max: %d per person.",
-    rules   =
-    "[GuildLottery] RULES: Each ticket you buy is one chance to win. The host rolls a number and the matching ticket wins the prize!",
-    entry   = "[GuildLottery] %s has entered with %d ticket(s)! (Ticket%s #%s)",
-    rolling = "[GuildLottery] Rolling 1-%d... (%d active participants, %d active tickets)",
-    result  = "[GuildLottery] ** WINNER ** Roll: %d -- Congratulations to %s! (%d ticket(s), #%s)",
-    payout  = "[GuildLottery] Prize breakdown -- Total pot: %dg - Winner gets: %dg (%d%%) - Guild cut: %dg (%d%%)",
-    noWin   = "[GuildLottery] No winner found. Is the pool empty?",
-    reset   = "[GuildLottery] The lottery has been reset. Good luck next round!",
-}
+local locale    = GetLocale() or "enUS"
+local MSG       = GuildLotteryLocale and GuildLotteryLocale[locale]
+                  or GuildLotteryLocale and GuildLotteryLocale["enUS"]
+                  or {}  -- safety fallback
 
 -- ============================================================
 -- HELPERS
