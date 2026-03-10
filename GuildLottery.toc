@@ -2,7 +2,8 @@
 ## Title: Guild Lottery
 ## Notes: Run a lottery with guild member suggestions, ticket tracking, and in-game announcements.
 ## Author: You
-## Version: 1.0
+## Version: @project-version@
+## X-Wago-ID:
 ## SavedVariables: GuildLotteryDB
 
 Locales\enUS.lua

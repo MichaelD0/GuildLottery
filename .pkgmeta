@@ -1,0 +1,7 @@
+package-as: GuildLottery
+
+ignore:
+  - CLAUDE.md
+  - README.md
+  - .github
+  - .pkgmeta
