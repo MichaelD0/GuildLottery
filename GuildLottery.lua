@@ -26,9 +26,7 @@ GL.settings     = {
 -- ============================================================
 -- MESSAGES  (locale-aware; see Locales/ folder to add translations)
 -- ============================================================
-local locale    = GetLocale() or "enUS"
-local MSG       = GuildLotteryLocale and GuildLotteryLocale[locale]
-                  or GuildLotteryLocale and GuildLotteryLocale["enUS"]
+local MSG       = GuildLotteryLocale and GuildLotteryLocale["frFR"]
                   or {}  -- safety fallback
 
 -- ============================================================
