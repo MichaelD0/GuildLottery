@@ -663,6 +663,9 @@ function GL:CreateGUI()
         note:SetWordWrap(true)
     end
 
+    -- Register with WoW's ESC-to-close system
+    tinsert(UISpecialFrames, "GuildLotteryFrame")
+
     ShowPanel(panelAdd)
     f:Show()
     f:Raise()
