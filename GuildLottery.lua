@@ -228,7 +228,9 @@ local FRAME_W, FRAME_H = 560, 600
 
 function GL:CreateGUI()
     if GL.frame then
-        GL.frame:Show(); return
+        GL.frame:Show()
+        GL.frame:Raise()
+        return
     end
 
     local f = CreateFrame("Frame", "GuildLotteryFrame", UIParent, "BasicFrameTemplateWithInset")
@@ -241,6 +243,8 @@ function GL:CreateGUI()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
+    f:SetFrameStrata("HIGH")
+    f:SetToplevel(true)
     f.TitleText:SetText("Guild Lottery")
 
     -- TABS
@@ -659,8 +663,12 @@ function GL:CreateGUI()
         note:SetWordWrap(true)
     end
 
+    -- Register with WoW's ESC-to-close system
+    tinsert(UISpecialFrames, "GuildLotteryFrame")
+
     ShowPanel(panelAdd)
     f:Show()
+    f:Raise()
 end
 
 -- ============================================================
