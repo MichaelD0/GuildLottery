@@ -199,7 +199,7 @@ function GL:RollWinner()
     end
 
     SendLotteryMessage(MSG.result:format(
-        roll, winner.name, winner.tickets, TicketRange(winner)
+        roll, winner.tickets, TicketRange(winner), winner.name
     ))
 
     -- Announce prize split
