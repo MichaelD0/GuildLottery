@@ -206,7 +206,7 @@ function GL:RollWinner()
     local pot, guildCut, winnerCut = CalcPrize()
     if pot > 0 then
         SendLotteryMessage(MSG.payout:format(
-            pot, winnerCut, 100 - GL.settings.guildCutPct, guildCut, GL.settings.guildCutPct
+            winner.name, pot, winnerCut, 100 - GL.settings.guildCutPct, guildCut, GL.settings.guildCutPct
         ))
     end
 
