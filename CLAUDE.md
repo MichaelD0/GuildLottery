@@ -19,7 +19,7 @@ GuildLottery/
 ├── CLAUDE.md               # This file
 ├── README.md               # User-facing installation & usage guide
 ├── GuildLottery.toc        # WoW addon manifest (metadata, load order)
-├── GuildLottery.lua        # All core logic and UI (~826 lines)
+├── GuildLottery.lua        # All core logic and UI (~835 lines)
 └── Locales/
     ├── enUS.lua            # English chat message templates
     └── frFR.lua            # French chat message templates
@@ -50,17 +50,21 @@ GuildLottery/
 
 ### Namespace
 
-All addon state and functions live on the global table `GL` (short for `GuildLottery`):
+The global table is named `GuildLottery`; a module-local alias `GL` is used throughout the file:
 
 ```lua
-GL = {}
+GuildLottery = {}
+local GL = GuildLottery
+```
+
+All addon state and functions live on `GL`. Never use raw globals for addon-internal data.
+
+```lua
 GL.participants = {}    -- ordered array of participant entries
 GL.nextTicket   = 1     -- monotonically increasing ticket counter
 GL.isStarted    = false -- true once the lottery has been announced
 GL.settings     = { ... }
 ```
-
-Never use raw globals for addon-internal data; always attach to `GL`.
 
 ### Participant Entry Format
 
@@ -68,10 +72,11 @@ Each entry in `GL.participants` is a table with these keys:
 
 ```lua
 {
-    name     = "PlayerName",   -- string, WoW character name
-    tickets  = 3,              -- number of tickets purchased
-    start    = 5,              -- first ticket number (inclusive)
-    removed  = false,          -- soft-delete flag (keeps ticket slots reserved)
+    name        = "PlayerName",   -- string, WoW character name
+    tickets     = 3,              -- number of tickets purchased
+    firstTicket = 5,              -- first ticket number (inclusive)
+    lastTicket  = 7,              -- last ticket number (inclusive)
+    removed     = false,          -- soft-delete flag (keeps ticket slots reserved)
 }
 ```
 
@@ -79,15 +84,52 @@ Removed participants are **never actually deleted** from the array; their `remov
 
 ### Localization / MSG Table
 
-Chat messages come from a module-level `MSG` table populated by the locale files loaded before `GuildLottery.lua`. Each value is a Lua format string with `%s`/`%d` placeholders. To add a new locale:
+Chat messages come from a module-level `MSG` table populated at file load time:
 
+```lua
+local MSG = GuildLotteryLocale and GuildLotteryLocale["frFR"] or {}
+```
+
+> **Important**: The locale key is currently **hardcoded to `"frFR"`** on line 29 of `GuildLottery.lua`. This means French templates are always used regardless of the client language. If `GuildLotteryLocale` is nil (locale files not loaded), `MSG` falls back to an empty table and no chat messages will appear.
+
+Each locale file (e.g. `Locales/enUS.lua`) builds the `GuildLotteryLocale` global table:
+
+```lua
+GuildLotteryLocale = GuildLotteryLocale or {}
+GuildLotteryLocale["enUS"] = { start = "...", rules = "...", ... }
+```
+
+There are **8 message keys** in each locale:
+
+| Key | Placeholders | Description |
+|-----|-------------|-------------|
+| `start` | `%s` price, `%d` min, `%d` max | Lottery open announcement |
+| `rules` | (none) | Static rules message |
+| `entry` | `%s` name, `%d` count, `%s` plural (`""` or `"s"`), `%s` ticket range | Player entry |
+| `rolling` | `%d` max ticket, `%d` active participants, `%d` active tickets | Roll in progress |
+| `result` | `%d` roll, `%s` winner, `%d` tickets, `%s` ticket range | Winner announcement |
+| `payout` | `%dg` pot, `%dg` winner cut, `%d%%` winner pct, `%dg` guild cut, `%d%%` guild pct | Prize breakdown |
+| `noWin` | (none) | No valid winner fallback |
+| `reset` | (none) | Lottery reset announcement |
+
+To change the active locale, update the hardcoded key on line 29 of `GuildLottery.lua`, or implement dynamic detection using `GetLocale()`.
+
+To add a new locale:
 1. Create `Locales/xxXX.lua` following the same structure as `enUS.lua`.
 2. Add the filename to `GuildLottery.toc` (before `GuildLottery.lua`).
-3. Guard the assignment so it only runs when the client locale matches.
+3. Change the hardcoded locale key on line 29 of `GuildLottery.lua` to `"xxXX"`.
 
 ### WoW Color Codes
 
-Inline chat colors use WoW's `|cffRRGGBB…|r` escape sequences. Gold-colored text for ticket counts uses `|cffffff00…|r`.
+Inline chat/UI colors use WoW's `|cffRRGGBB…|r` escape sequences. Colors used in the addon:
+
+| Purpose | Escape |
+|---------|--------|
+| Gold amounts | `|cffFFD700` |
+| Active / positive values | `|cff00ff00` (green) |
+| Warning / guild cut | `|cffff9900` (orange) |
+| Dimmed / secondary text | `|cffaaaaaa` (gray) |
+| Ticket counts in chat | `|cffffff00` (yellow) |
 
 ### Slash Commands
 
@@ -96,11 +138,11 @@ Inline chat colors use WoW's `|cffRRGGBB…|r` escape sequences. Gold-colored te
 /gl        — alias for /lottery
 ```
 
-Both are registered with `SLASH_GUILDLOTTERY1` / `SLASH_GUILDLOTTERY2` globals and point to the same handler.
+Both are registered with `SLASH_GUILDLOTTERY1` / `SLASH_GUILDLOTTERY2` globals and point to the same handler (lines 745–747).
 
 ### Minimap Button
 
-A complete minimap button implementation exists at the bottom of `GuildLottery.lua` (lines ~742–826) but is **commented out**. To re-enable it, uncomment the block and ensure the `LibStub`/`LibDBIcon` dependency is available, or adapt it to the native `Minimap` frame APIs already partially used there.
+A complete minimap button implementation exists at the bottom of `GuildLottery.lua` (lines ~750–834) but is **commented out**. To re-enable it, uncomment the block and ensure the `LibStub`/`LibDBIcon` dependency is available, or adapt it to the native `Minimap` frame APIs already partially used there.
 
 ---
 
@@ -111,27 +153,31 @@ A complete minimap button implementation exists at the bottom of `GuildLottery.l
 ```
 GL.nextTicket starts at 1.
 When a player is added with N tickets:
-    entry.start  = GL.nextTicket
-    entry.finish = GL.nextTicket + N - 1
-    GL.nextTicket += N
+    entry.firstTicket = GL.nextTicket
+    entry.lastTicket  = GL.nextTicket + N - 1
+    GL.nextTicket    += N
 ```
 
 Ticket numbers are immutable once assigned.
 
 ### Winner Selection (`GL:RollWinner`)
 
-1. Build a lookup table: `ticketOwner[ticketNum] = participantEntry`
-2. Roll `math.random(1, MaxTicket())` — `MaxTicket()` returns `GL.nextTicket - 1`
-3. If the rolled ticket belongs to a removed player, re-roll (up to 500 attempts)
-4. Announce winner via `SendLotteryMessage` using `MSG.result` and `MSG.payout`
-5. On failure (all tickets belong to removed players), announce via `MSG.noWin`
+1. Validate active tickets exist; if none, announce via `MSG.noWin` and return
+2. Announce rolling message via `MSG.rolling` with participant/ticket counts
+3. Build a lookup table: `ticketOwner[ticketNum] = participantEntry` (active entries only)
+4. Roll `math.random(1, MaxTicket())` — `MaxTicket()` returns `GL.nextTicket - 1`
+5. If the rolled ticket belongs to a removed player, re-roll (up to 500 attempts)
+6. Announce winner via `SendLotteryMessage` using `MSG.result` and `MSG.payout`
+7. On failure (all tickets belong to removed players), announce via `MSG.noWin`
+8. Return `(winnerName, rollNumber)`
 
 ### Prize Calculation (`CalcPrize`)
 
 ```
 totalPot     = activeTickets * ticketPriceValue   (gold)
-guildCut     = totalPot * (guildCutPct / 100)
+guildCut     = floor(totalPot * guildCutPct / 100)
 winnerPrize  = totalPot - guildCut
+winnerPct    = 100 - guildCutPct
 ```
 
 ### Chat Channel Routing (`SendLotteryMessage`)
@@ -146,12 +192,18 @@ The main window is a standard `Frame` built inside `GL:CreateGUI()`. It contains
 
 | Tab | Purpose |
 |-----|---------|
-| **Add Player** | Text input + autocomplete list filtered from guild roster; validates ticket count against min/max settings |
-| **Participants** | Scrollable list of Name / Ticket Count / Ticket Range; "Remove Selected" soft-deletes |
-| **Controls** | Live prize summary; buttons to announce start, announce rules, roll winner, and reset |
-| **Settings** | Ticket price (label + gold value), min/max ticket counts, guild cut slider, chat channel dropdown |
+| **Add Player** | Text input + autocomplete list filtered from guild roster (3-column layout, live filtering); validates ticket count against min/max settings |
+| **Participants** | Scrollable list of Name / Tickets / Ticket Range with summary header; "Remove Selected" soft-deletes |
+| **Controls** | Live prize summary box; four buttons: Announce Start, Announce Rules, Roll Winner, Reset |
+| **Settings** | Ticket price (label + gold value), min/max ticket counts, guild cut slider (0–100% with − / + buttons), chat channel dropdown |
 
-`GL:RefreshParticipantList()` and `RefreshPrizeSummary()` are the two functions that must be called whenever underlying state changes in order to keep the UI consistent.
+`GL:RefreshParticipantList()` and `RefreshPrizeSummary()` are the two functions that **must** be called whenever underlying state changes to keep the UI consistent.
+
+### Participants List Details
+
+- Active participants: clickable/selectable rows shown normally
+- Removed participants: dimmed rows with a `[removed]` label appended; not selectable for rolling but still displayed
+- Header row shows: active participant count, total active tickets, full ticket pool range
 
 ---
 
@@ -170,9 +222,10 @@ There is no automated test suite. All testing is done manually inside the WoW ga
 ### Making Changes
 
 - **Core logic changes** → edit `GuildLottery.lua`
-- **Chat message wording** → edit `Locales/enUS.lua` (and mirror changes to other locale files)
+- **Chat message wording** → edit `Locales/frFR.lua` (the currently active locale); mirror changes to other locale files
+- **Active locale** → change the hardcoded key `"frFR"` on line 29 of `GuildLottery.lua`
 - **Adding a new WoW interface version** → add the numeric version to the `## Interface:` line in `GuildLottery.toc`
-- **Adding a new locale** → create `Locales/xxXX.lua`, register it in the `.toc`, add a locale guard
+- **Adding a new locale** → create `Locales/xxXX.lua`, register it in the `.toc`, update the locale key in `GuildLottery.lua`
 
 ### No Build Step
 
@@ -187,10 +240,12 @@ Common WoW Lua APIs used throughout the file:
 | API | Purpose |
 |-----|---------|
 | `CreateFrame(type, name, parent, template)` | Create UI widgets |
+| `IsInGuild()` | Check if the player is in a guild |
 | `GetNumGuildMembers()` | Count guild roster size |
 | `GetGuildRosterInfo(index)` | Fetch data for one guild member |
 | `SendChatMessage(msg, channel)` | Send a message to a chat channel |
 | `math.random(min, max)` | Generate a random integer (WoW-provided) |
+| `math.floor(n)` | Floor a number (Lua standard) |
 | `string.format(fmt, ...)` | Standard Lua string formatting |
 | `table.insert / table.remove` | Standard Lua table helpers |
 
@@ -205,16 +260,18 @@ When adding a new feature:
 1. **State**: Add any new persistent fields to `GL.settings` (auto-saved via SavedVariables) or to `GL` itself (session-only).
 2. **UI**: Add UI elements inside `GL:CreateGUI()` in the appropriate tab section. Follow the existing `CreateFrame` patterns.
 3. **Refresh**: Call `GL:RefreshParticipantList()` and/or `RefreshPrizeSummary()` after any state mutation that affects the displayed UI.
-4. **Localization**: If the feature produces chat output, add a new key to `MSG` in each locale file and use `string.format(MSG.newKey, ...)` rather than hardcoded strings.
+4. **Localization**: If the feature produces chat output, add a new key to `MSG` in **each** locale file and use `string.format(MSG.newKey, ...)` rather than hardcoded strings.
 5. **Slash commands**: If adding a new command, register it with a new `SLASH_GUILDLOTTERY#` global.
 
 ---
 
 ## Conventions Summary
 
-- Use the `GL` namespace for all addon state and methods.
+- The global is `GuildLottery`; use the module-local alias `GL` for all internal references.
 - Never hardcode chat message text; always go through the `MSG` locale table.
+- Participant entry keys are `firstTicket` and `lastTicket` (not `start`/`finish`).
 - Ticket numbers are monotonically increasing and never reused; use soft-delete (`removed = true`) instead of splicing arrays.
 - WoW color codes follow the `|cffRRGGBB…|r` format.
 - Keep all logic in `GuildLottery.lua` unless it is purely a locale string, in which case it belongs in the appropriate `Locales/` file.
 - No external dependencies; use only WoW built-in APIs and the Lua 5.1 standard library.
+- The active locale is currently hardcoded to `"frFR"` on line 29 of `GuildLottery.lua`.
