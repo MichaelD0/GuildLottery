@@ -231,6 +231,22 @@ There is no automated test suite. All testing is done manually inside the WoW ga
 
 WoW addons are deployed as plain text files. There is no compilation, minification, or bundling. Changes are effective immediately after `/reload`.
 
+### Pre-PR Documentation Checklist
+
+Before opening a pull request, verify that CLAUDE.md is still accurate:
+
+- **New functions or helpers** → add them to the relevant section (Core Logic Reference, WoW API Conventions, etc.)
+- **Renamed/removed fields** → update Participant Entry Format and any references to the old names
+- **New settings keys** → document them in the namespace section and the Settings tab description
+- **New chat messages** → add rows to the MSG key reference table in the Localization section
+- **Locale key changed** → update the hardcoded locale note in the Localization section
+- **New slash commands** → add them to the Slash Commands section
+- **New UI tabs or panels** → update the UI Structure table
+- **New WoW API calls** → add them to the WoW API Conventions table
+- **Line count shifts significantly** → update the `~835 lines` note in the Repository Structure section
+
+If CLAUDE.md needed changes, include them in the same commit (or PR) as the code change — not as a follow-up.
+
 ---
 
 ## WoW API Conventions
