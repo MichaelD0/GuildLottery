@@ -243,7 +243,7 @@ function GL:CreateGUI()
     f:SetScript("OnDragStart", f.StartMoving)
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetClampedToScreen(true)
-    f:SetFrameStrata("HIGH")
+    f:SetFrameStrata("MEDIUM")
     f:SetToplevel(true)
     f.TitleText:SetText("Guild Lottery")
 
