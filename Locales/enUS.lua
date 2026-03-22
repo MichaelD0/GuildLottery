@@ -7,7 +7,7 @@ GuildLotteryLocale["enUS"] = {
     entry   = "[GuildLottery] %s has entered with %d ticket(s)! (Ticket%s #%s)",
     rolling = "[GuildLottery] Rolling 1-%d... (%d active participants, %d active tickets)",
     result  = "[GuildLottery] ** WINNER ** Roll: %d -- (%d ticket(s), #%s) -- Congratulations to %s!",
-    payout  = "[GuildLottery] Prize breakdown for %s -- Total pot: %dg - Winner gets: %dg (%d%%) - Guild cut: %dg (%d%%)",
+    payout  = "[GuildLottery] Payout: %s | Pot: %dg | Winner: %dg (%d%%) | Guild: %dg (%d%%)",
     noWin   = "[GuildLottery] No winner found. Is the pool empty?",
     reset   = "[GuildLottery] The lottery has been reset. Good luck next round!",
 }
