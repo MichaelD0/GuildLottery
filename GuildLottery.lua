@@ -30,6 +30,40 @@ local MSG       = GuildLotteryLocale and GuildLotteryLocale["frFR"]
                   or {}  -- safety fallback
 
 -- ============================================================
+-- PERSISTENCE  (SavedVariables: GuildLotteryDB)
+-- ============================================================
+local eventFrame = CreateFrame("Frame")
+eventFrame:RegisterEvent("ADDON_LOADED")
+eventFrame:RegisterEvent("PLAYER_LOGOUT")
+eventFrame:SetScript("OnEvent", function(_, event, arg1)
+    if event == "ADDON_LOADED" and arg1 == "GuildLottery" then
+        if GuildLotteryDB then
+            if GuildLotteryDB.participants then
+                GL.participants = GuildLotteryDB.participants
+            end
+            if GuildLotteryDB.nextTicket then
+                GL.nextTicket = GuildLotteryDB.nextTicket
+            end
+            if GuildLotteryDB.isStarted ~= nil then
+                GL.isStarted = GuildLotteryDB.isStarted
+            end
+            if GuildLotteryDB.settings then
+                for k, v in pairs(GuildLotteryDB.settings) do
+                    GL.settings[k] = v
+                end
+            end
+        end
+    elseif event == "PLAYER_LOGOUT" then
+        GuildLotteryDB = {
+            participants = GL.participants,
+            nextTicket   = GL.nextTicket,
+            isStarted    = GL.isStarted,
+            settings     = GL.settings,
+        }
+    end
+end)
+
+-- ============================================================
 -- HELPERS
 -- ============================================================
 local function SendLotteryMessage(msg)
