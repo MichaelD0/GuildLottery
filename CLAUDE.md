@@ -19,7 +19,7 @@ GuildLottery/
 ├── CLAUDE.md               # This file
 ├── README.md               # User-facing installation & usage guide
 ├── GuildLottery.toc        # WoW addon manifest (metadata, load order)
-├── GuildLottery.lua        # All core logic and UI (~835 lines)
+├── GuildLottery.lua        # All core logic and UI (~1008 lines)
 └── Locales/
     ├── enUS.lua            # English chat message templates
     └── frFR.lua            # French chat message templates
@@ -31,7 +31,7 @@ GuildLottery/
 |------|------|
 | `GuildLottery.toc` | Declares addon name, version, author, supported WoW interface versions, saved-variable names, and the file load order |
 | `GuildLottery.lua` | Single monolithic file containing all runtime logic: state management, helper functions, GUI construction, tab panels, slash-command registration |
-| `Locales/enUS.lua` | Eight format-string templates for every chat announcement (lottery start, rules, player entry, rolling, result, payout, no-winner, reset) |
+| `Locales/enUS.lua` | Eight format-string templates for every chat announcement (lottery start, rules, player entry, donation, result, payout, no-winner, reset) |
 | `Locales/frFR.lua` | French equivalents of the same eight templates |
 
 ---
@@ -63,6 +63,7 @@ All addon state and functions live on `GL`. Never use raw globals for addon-inte
 GL.participants = {}    -- ordered array of participant entries
 GL.nextTicket   = 1     -- monotonically increasing ticket counter
 GL.isStarted    = false -- true once the lottery has been announced
+GL.donations    = {}    -- ordered array of donation entries (gold without tickets)
 GL.settings     = { ... }
 ```
 
@@ -81,6 +82,20 @@ Each entry in `GL.participants` is a table with these keys:
 ```
 
 Removed participants are **never actually deleted** from the array; their `removed` flag is set to `true` so their ticket numbers stay reserved and cannot be re-issued.
+
+### Donation Entry Format
+
+Each entry in `GL.donations` is a table with these keys:
+
+```lua
+{
+    name    = "PlayerName",  -- string, donor name
+    amount  = 500,           -- gold amount donated
+    removed = false,         -- soft-delete flag
+}
+```
+
+Donations add gold to the pot without issuing tickets. Donors do not participate in the roll.
 
 ### Localization / MSG Table
 
@@ -106,9 +121,10 @@ There are **8 message keys** in each locale:
 | `start` | `%s` price, `%d` min, `%d` max | Lottery open announcement |
 | `rules` | (none) | Static rules message |
 | `entry` | `%s` name, `%d` count, `%s` plural (`""` or `"s"`), `%s` ticket range | Player entry |
-| `rolling` | `%d` max ticket, `%d` active participants, `%d` active tickets | Roll in progress |
-| `result` | `%d` roll, `%s` winner, `%d` tickets, `%s` ticket range | Winner announcement |
-| `payout` | `%dg` pot, `%dg` winner cut, `%d%%` winner pct, `%dg` guild cut, `%d%%` guild pct | Prize breakdown |
+
+| `result` | `%d` roll, `%d` tickets, `%s` ticket range, `%s` winner name | Winner announcement |
+| `payout` | `%s` winner name, `%d` pot, `%d` winner cut, `%d%%` winner pct, `%d` guild cut, `%d%%` guild pct | Prize breakdown |
+| `donation` | `%s` name, `%d` gold amount | Donation announcement |
 | `noWin` | (none) | No valid winner fallback |
 | `reset` | (none) | Lottery reset announcement |
 
@@ -174,7 +190,7 @@ Ticket numbers are immutable once assigned.
 ### Prize Calculation (`CalcPrize`)
 
 ```
-totalPot     = activeTickets * ticketPriceValue   (gold)
+totalPot     = activeTickets * ticketPriceValue + totalDonations   (gold)
 guildCut     = floor(totalPot * guildCutPct / 100)
 winnerPrize  = totalPot - guildCut
 winnerPct    = 100 - guildCutPct
@@ -194,7 +210,7 @@ The main window is a standard `Frame` built inside `GL:CreateGUI()`. It contains
 |-----|---------|
 | **Add Player** | Text input + autocomplete list filtered from guild roster (3-column layout, live filtering); validates ticket count against min/max settings |
 | **Participants** | Scrollable list of Name / Tickets / Ticket Range with summary header; "Remove Selected" soft-deletes |
-| **Controls** | Live prize summary box; four buttons: Announce Start, Announce Rules, Roll Winner, Reset |
+| **Controls** | Live prize summary box; donation input (name + gold amount); four buttons: Announce Start, Announce Rules, Roll Winner, Reset |
 | **Settings** | Ticket price (label + gold value), min/max ticket counts, guild cut slider (0–100% with − / + buttons), chat channel dropdown |
 
 `GL:RefreshParticipantList()` and `RefreshPrizeSummary()` are the two functions that **must** be called whenever underlying state changes to keep the UI consistent.
@@ -243,7 +259,7 @@ Before opening a pull request, verify that CLAUDE.md is still accurate:
 - **New slash commands** → add them to the Slash Commands section
 - **New UI tabs or panels** → update the UI Structure table
 - **New WoW API calls** → add them to the WoW API Conventions table
-- **Line count shifts significantly** → update the `~835 lines` note in the Repository Structure section
+- **Line count shifts significantly** → update the `~1008 lines` note in the Repository Structure section
 
 If CLAUDE.md needed changes, include them in the same commit (or PR) as the code change — not as a follow-up.
 

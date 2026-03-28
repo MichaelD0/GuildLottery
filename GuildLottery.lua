@@ -14,6 +14,7 @@ local GL        = GuildLottery
 GL.participants = {}
 GL.nextTicket   = 1 -- next ticket number to assign
 GL.isStarted    = false
+GL.donations    = {} -- { name, amount, removed } entries — gold added without tickets
 GL.settings     = {
     minTickets       = 1,
     maxTickets       = 10,
@@ -47,6 +48,9 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
             if GuildLotteryDB.isStarted ~= nil then
                 GL.isStarted = GuildLotteryDB.isStarted
             end
+            if GuildLotteryDB.donations then
+                GL.donations = GuildLotteryDB.donations
+            end
             if GuildLotteryDB.settings then
                 for k, v in pairs(GuildLotteryDB.settings) do
                     GL.settings[k] = v
@@ -58,6 +62,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
             participants = GL.participants,
             nextTicket   = GL.nextTicket,
             isStarted    = GL.isStarted,
+            donations    = GL.donations,
             settings     = GL.settings,
         }
     end
@@ -119,10 +124,21 @@ local function MaxTicket()
     return GL.nextTicket - 1
 end
 
+-- Sum of all active (non-removed) donations
+local function TotalDonations()
+    local sum = 0
+    for _, d in ipairs(GL.donations) do
+        if not d.removed then
+            sum = sum + d.amount
+        end
+    end
+    return sum
+end
+
 -- Returns total pot, guild cut, and winner cut (all in gold)
 local function CalcPrize()
     local _, activeTotal = ActiveStats()
-    local pot            = activeTotal * GL.settings.ticketPriceValue
+    local pot            = activeTotal * GL.settings.ticketPriceValue + TotalDonations()
     local guildCut       = math.floor(pot * GL.settings.guildCutPct / 100)
     local winnerCut      = pot - guildCut
     return pot, guildCut, winnerCut
@@ -196,6 +212,27 @@ function GL:AnnounceRules()
     SendLotteryMessage(MSG.rules)
 end
 
+function GL:AddDonation(name, amount)
+    name   = name:gsub("^%s+", ""):gsub("%s+$", "")
+    amount = tonumber(amount) or 0
+
+    if name == "" then return false, "Name cannot be empty." end
+    if amount <= 0 then return false, "Donation must be greater than 0g." end
+
+    tinsert(GL.donations, { name = name, amount = amount, removed = false })
+    SendLotteryMessage(MSG.donation:format(name, amount))
+    return true, ("Added %dg donation from %s."):format(amount, name)
+end
+
+function GL:RemoveDonation(index)
+    local d = GL.donations[index]
+    if d and not d.removed then
+        d.removed = true
+        return true
+    end
+    return false
+end
+
 function GL:RollWinner()
     local count, activeTotal = ActiveStats()
 
@@ -207,8 +244,6 @@ function GL:RollWinner()
     -- We roll over the full issued range and re-roll if we land on a
     -- removed player's ticket slot. This keeps all original numbers intact.
     local maxT = MaxTicket()
-    SendLotteryMessage(MSG.rolling:format(maxT, count, activeTotal))
-
     -- Build ticket -> entry lookup (active only)
     local lookup = {}
     for _, e in ipairs(GL.participants) do
@@ -251,6 +286,7 @@ function GL:Reset()
     GL.participants = {}
     GL.nextTicket   = 1
     GL.isStarted    = false
+    GL.donations    = {}
     SendLotteryMessage(MSG.reset)
     if GL.frame then GL:RefreshParticipantList() end
 end
@@ -469,6 +505,11 @@ function GL:CreateGUI()
                 GL:RefreshParticipantList()
                 RefreshPrizeSummary()
                 if GL.RefreshGuildSuggestions then GL.RefreshGuildSuggestions("") end
+            elseif GL.selectedDonation then
+                GL:RemoveDonation(GL.selectedDonation)
+                GL.selectedDonation = nil
+                GL:RefreshParticipantList()
+                RefreshPrizeSummary()
             end
         end)
     end
@@ -498,6 +539,58 @@ function GL:CreateGUI()
         RefreshPrizeSummary()
 
         y = y - 60
+
+        -- Donation section
+        local lDonTitle = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        lDonTitle:SetPoint("TOPLEFT", p, 14, y)
+        lDonTitle:SetText("|cffffcc00Add Gold to Pot (no tickets)|r")
+        y = y - 20
+
+        local lDonName = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lDonName:SetPoint("TOPLEFT", p, 14, y)
+        lDonName:SetText("From:")
+
+        local eDonName = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+        eDonName:SetSize(130, 22)
+        eDonName:SetPoint("LEFT", lDonName, "RIGHT", 6, 0)
+        eDonName:SetAutoFocus(false)
+        eDonName:SetMaxLetters(64)
+
+        local lDonAmt = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        lDonAmt:SetPoint("LEFT", eDonName, "RIGHT", 12, 0)
+        lDonAmt:SetText("Gold:")
+
+        local eDonAmt = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+        eDonAmt:SetSize(70, 22)
+        eDonAmt:SetPoint("LEFT", lDonAmt, "RIGHT", 6, 0)
+        eDonAmt:SetAutoFocus(false)
+        eDonAmt:SetNumeric(true)
+        eDonAmt:SetMaxLetters(7)
+
+        local btnDon = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+        btnDon:SetSize(80, 22)
+        btnDon:SetPoint("LEFT", eDonAmt, "RIGHT", 8, 0)
+        btnDon:SetText("Donate")
+
+        local donStatus = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        donStatus:SetPoint("TOPLEFT", p, 14, y - 26)
+        donStatus:SetWidth(490)
+
+        btnDon:SetScript("OnClick", function()
+            local ok, msg = GL:AddDonation(eDonName:GetText(), eDonAmt:GetText())
+            if ok then
+                eDonName:SetText("")
+                eDonAmt:SetText("")
+                donStatus:SetText("|cff00ff00" .. msg .. "|r")
+                RefreshPrizeSummary()
+                GL:RefreshParticipantList()
+            else
+                donStatus:SetText("|cffff4444Error: " .. msg .. "|r")
+            end
+        end)
+        eDonAmt:SetScript("OnEnterPressed", function() btnDon:Click() end)
+
+        y = y - 52
 
         local function BigButton(label, yOff, onclick)
             local btn = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
@@ -534,6 +627,8 @@ function GL:CreateGUI()
         BigButton("Reset Lottery", y, function()
             GL:Reset()
             GL.lastWinner:SetText("No winner yet.")
+            GL.selectedDonation = nil
+            donStatus:SetText("")
             RefreshPrizeSummary()
             if GL.RefreshGuildSuggestions then GL.RefreshGuildSuggestions("") end
         end)
@@ -761,15 +856,58 @@ function GL:RefreshParticipantList()
 
         row = row + 1
     end
+
+    -- Show donations
+    for i, d in ipairs(GL.donations) do
+        local rowFrame = CreateFrame("Button", nil, content)
+        rowFrame:SetSize(500, ROW_H)
+        rowFrame:SetPoint("TOPLEFT", content, 0, -row * (ROW_H + 2))
+
+        if d.removed then
+            local txt = rowFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            txt:SetPoint("LEFT", rowFrame, 4, 0)
+            txt:SetText("|cff555555" .. d.name .. "   " .. d.amount .. "g   [donation removed]|r")
+        else
+            rowFrame:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+
+            local tName = rowFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            tName:SetPoint("LEFT", rowFrame, 4, 0)
+            tName:SetWidth(195)
+            tName:SetText(d.name)
+
+            local tAmt = rowFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            tAmt:SetPoint("LEFT", rowFrame, 210, 0)
+            tAmt:SetWidth(75)
+            tAmt:SetText("|cffFFD700" .. d.amount .. "g|r")
+
+            local tTag = rowFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            tTag:SetPoint("LEFT", rowFrame, 295, 0)
+            tTag:SetWidth(200)
+            tTag:SetText("|cffff9900[donation]|r")
+
+            local idx = i
+            rowFrame:SetScript("OnClick", function()
+                GL.selectedDonation = idx
+                GL.selectedParticipant = nil
+                tName:SetText("|cffFFFFFF>> " .. d.name .. "|r")
+            end)
+        end
+
+        row = row + 1
+    end
+
     content:SetHeight(math.max(1, row * (ROW_H + 2)))
 
     local count, total = ActiveStats()
+    local donTotal = TotalDonations()
     if GL.participantHeader then
-        GL.participantHeader:SetText(
-            ("Active: |cffFFD700%d|r players   Total: |cff88ccff%d|r tickets   Pool: |cffaaaaaa1-%d|r"):format(
-                count, total, MaxTicket()
-            )
+        local headerText = ("Active: |cffFFD700%d|r players   Total: |cff88ccff%d|r tickets   Pool: |cffaaaaaa1-%d|r"):format(
+            count, total, MaxTicket()
         )
+        if donTotal > 0 then
+            headerText = headerText .. ("   Donations: |cffFFD700%dg|r"):format(donTotal)
+        end
+        GL.participantHeader:SetText(headerText)
     end
 end
 
